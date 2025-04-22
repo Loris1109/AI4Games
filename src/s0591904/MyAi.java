@@ -19,6 +19,7 @@ public class MyAi extends AI {
     float[] target;
     float[] avoidTarget;
     float[] predictionPoint;
+    float[] avoidDirection;
     boolean avoiding = false;
     int currentTargetIndex = 0;
     private final float maxAngularVelocity = (float) Math.toRadians(10f);
@@ -50,7 +51,7 @@ public class MyAi extends AI {
     @Override
     public PlayerAction update() {
         predictionPoint = PredictionAhead();
-        float avoidancePower = AvoidObstacles(predictionPoint);
+        float[] avoidanceForce = AvoidObstacles(predictionPoint);
         float power = 0;
         float angularAcceleration = 0;
 
@@ -67,28 +68,21 @@ public class MyAi extends AI {
 
         if(avoiding)
         {
-            // Move sideways instead of facing the pearl
-            float sideOffset = 25; // adjust if needed
-
-            float[] avoidanceDirection = new float[] {
-                    -(float) Math.sin(info.getOrientation()),  // this gives you a perpendicular vector
-                    (float) Math.cos(info.getOrientation())
+            float sideOffset = 20;
+            avoidTarget = new float[] {
+                    info.getX() + avoidanceForce[0] * sideOffset,
+                    info.getY() + avoidanceForce[1] * sideOffset
             };
 
-            avoidTarget = new float[]{
-                    info.getX() + avoidanceDirection[0] * sideOffset,
-                    info.getY() - avoidanceDirection[1] * sideOffset
-            };
-
+            // Move in that direction
+            power = (float) Math.sqrt(avoidanceForce[0]*avoidanceForce[0] + avoidanceForce[1]*avoidanceForce[1]);
             angularAcceleration = Align(avoidTarget, (float) Math.toRadians(5), (float) Math.toRadians(30), 0.5f);
-            power = avoidancePower;
         }
         else
         {
             power = Arrive(target, 1.0f, 5.0f, 0.1f);
             angularAcceleration = Align(target, (float) Math.toRadians(5), (float) Math.toRadians(30), 0.5f);
         }
-        System.out.println(power);
 
 
         return new DivingAction(power, angularAcceleration);
@@ -112,7 +106,7 @@ public class MyAi extends AI {
         return ahead;
     }
 
-    private float AvoidObstacles(float[] predictionPoint)
+    private float[] AvoidObstacles(float[] predictionPoint)
     {
         for (Path2D obs : obstacles) {
             // Create a small rectangle around the prediction point to check for intersection
@@ -123,7 +117,7 @@ public class MyAi extends AI {
                 // Compute perpendicular direction to the current orientation
                 float[] perpendicular = new float[]{
                         -(float) Math.sin(info.getOrientation()),
-                        (float) Math.cos(info.getOrientation())
+                        -(float) Math.cos(info.getOrientation())
                 };
 
                 // Calculate the relative position of the obstacle to the player
@@ -137,25 +131,28 @@ public class MyAi extends AI {
                 float directionSign = Math.signum(cross); // +1: left, -1: right
 
                 // Apply maximum acceleration in the perpendicular direction
-                float[] avoidAcceleration = new float[]{
+                avoidDirection = new float[]{
                         perpendicular[0] * info.getMaxAcceleration(),
                         perpendicular[1] * info.getMaxAcceleration()
                 };
-                avoidAcceleration[0] *= directionSign;
-                avoidAcceleration[1] *= directionSign;
-                float magnitude = (float) Math.sqrt(avoidAcceleration[0] * avoidAcceleration[0] + avoidAcceleration[1] * avoidAcceleration[1]);
+                avoidDirection[0] *= directionSign;
+                avoidDirection[1] *= directionSign;
+                float magnitude = (float) Math.sqrt(avoidDirection[0] * avoidDirection[0] + avoidDirection[1] * avoidDirection[1]);
+                avoidDirection[0] /= magnitude;
+                avoidDirection[1] /= magnitude;
 
 
                 float power = magnitude;
 
+
                 avoiding = true;
-                return power;
+                return avoidDirection;
 
             }
 
         }
         avoiding = false;
-        return 0;
+        return null;
     }
 
     private float[] Seek(float[] targetPos)
@@ -289,7 +286,13 @@ public class MyAi extends AI {
         if(avoidTarget != null)
         {
             gfx.setColor(Color.GREEN);
-            gfx.drawRect((int) (avoidTarget[0] - 5 / 2), (int) (avoidTarget[1] - 5 / 2), 5, 5);
+            gfx.drawOval((int)avoidTarget[0], (int) avoidTarget[1], 2, 2);
+        }
+        if(avoidDirection !=null) {
+            gfx.drawLine((int) info.getX(), (int) info.getY(), (int) avoidDirection[0], (int) avoidDirection[1]);
+            System.out.println("dir: "+Arrays.toString(avoidDirection));
+            System.out.println("target: "+Arrays.toString(avoidTarget));
+            System.out.println("pos: "+info.getX()+","+info.getY());
         }
 
     }
